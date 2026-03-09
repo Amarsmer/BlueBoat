@@ -23,8 +23,6 @@ install(PROGRAMS src/MPC/ur_mpc_control.py
 install(PROGRAMS src/MPC/ur_mpc.py
         DESTINATION lib/${PROJECT_NAME})
 
-install(PROGRAMS src/_custom_libraries/pose_to_rpy.py
-        DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS src/_custom_libraries/path_publisher.py
         DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS src/_custom_libraries/path_generation.py

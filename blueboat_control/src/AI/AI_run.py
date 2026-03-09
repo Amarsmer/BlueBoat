@@ -42,10 +42,7 @@ class Controller(Node):
         self.declare_parameter('weight_name', '')        # Will load a saved weight file if specified, otherwise will create some
         self.declare_parameter('train', True)            # Wether weight are updated, 'False' implies testing
         self.declare_parameter('automate', True)         # Test automation will change the robot's pose if some loss requirements are met
-        self.declare_parameter('use_quaternions', False) # Whether to use quaternions in target computation
         self.input_string = ['','']                      # Meant to be used as ['instruction', 'argument']
-
-        self.use_quat = self.get_parameter('use_quaternions').get_parameter_value().bool_value
 
         self.rov = ROV(self, thrust_visual = True)
 
@@ -58,7 +55,7 @@ class Controller(Node):
         self.data_publisher = self.create_publisher(Float32MultiArray, "/monitoring_data", 10)
         self.network_publisher = self.create_publisher(Float32MultiArray, "/network_data", 10)
         
-        self.dt = 0.05 # Used both for run and pose computation
+        self.dt = 0.01 # Used both for run and pose computation
         self.timer = self.create_timer(self.dt, self.run)
 
         self.future = None # Used for client requests
@@ -93,7 +90,7 @@ class Controller(Node):
         # Weighting matrices
         self.Q_weight = np.diag([50, # x
                                  50, # y 
-                                 40, # psi
+                                 10, # psi
                                  1, # u
                                  1, # v
                                  1  # r
@@ -108,7 +105,7 @@ class Controller(Node):
 
         # Network parameters
         self.HL_size = 40
-        input_size = 5 # x, y, psi, u, v, r
+        input_size = 6 # x, y, psi, u, v, r
         output_size = 2 # u1, u2
         self.learning_rate = 1e-4
 
@@ -161,7 +158,6 @@ class Controller(Node):
         self.current_time = self.get_time()
 
         # Initiate monitoring data, both stored as .npy and published on a topic
-        self.state_display = None
         self.monitoring = []
         self.monitoring.append(['x','y','psi','x_d','y_d','psi_d','u1','u2', 'grad1', 'grad2', 'loss_X', 'loss_u', 'skew', 't']) # Naming the variables in the first row, useful as is and even more so if data points change between version
 
@@ -172,10 +168,7 @@ class Controller(Node):
         return s + ns*1e-9
 
     def odom_callback(self, msg: Odometry):
-        pose, twist = cf.odometry(msg, self.use_quat)
-        display_pose, _ = cf.odometry(msg, False)
-
-        self.state_display = display_pose
+        pose, twist = cf.odometry(msg)
 
         self.rov.current_pose = pose
         self.rov.current_twist = twist
@@ -214,122 +207,19 @@ class Controller(Node):
         r = dpsi / self.dt
         
         return [x, y, psi, u, v, r]
-
-    def compute_target_quat(self, path):
-
-        def quat_to_rot3(q):
-            w, x, y, z = q.w, q.x, q.y, q.z
-            return np.array([
-                [1 - 2*(y*y + z*z),     2*(x*y - w*z),     2*(x*z + w*y)],
-                [2*(x*y + w*z),         1 - 2*(x*x + z*z), 2*(y*z - w*x)],
-                [2*(x*z - w*y),         2*(y*z + w*x),     1 - 2*(x*x + y*y)]
-            ])
-
-        def quat_inverse(q):
-            return np.array([q.w, -q.x, -q.y, -q.z])
-
-        def quat_multiply(q1, q2):
-            w1, x1, y1, z1 = q1
-            w2, x2, y2, z2 = q2
-            return np.array([
-                w1*w2 - x1*x2 - y1*y2 - z1*z2,
-                w1*x2 + x1*w2 + y1*z2 - z1*y2,
-                w1*y2 - x1*z2 + y1*w2 + z1*x2,
-                w1*z2 + x1*y2 - y1*x2 + z1*w2
-            ])
-
-        poses = path.poses[:2]
-        present = poses[0].pose
-        future = poses[1].pose
-
-        dt = self.dt
-
-        # =========================
-        # Position difference (world frame)
-        # =========================
-        dx = future.position.x - present.position.x
-        dy = future.position.y - present.position.y
-        dz = future.position.z - present.position.z
-
-        dp_world = np.array([dx, dy, dz])
-
-        # =========================
-        # Body-frame linear velocity (3D)
-        # =========================
-        R_prev = quat_to_rot3(present.orientation)
-        R_next = quat_to_rot3(future.orientation)
-
-        # Midpoint rotation (better integration)
-        R_mid = 0.5 * (R_prev + R_next)
-
-        dp_body = R_mid.T @ dp_world
-        vel_body = dp_body / dt
-
-        u = vel_body[0]
-        v = vel_body[1]
-        w = vel_body[2]   # vertical velocity
-
-        # =========================
-        # Angular velocity from quaternion difference
-        # =========================
-        q1 = np.array([
-            present.orientation.w,
-            present.orientation.x,
-            present.orientation.y,
-            present.orientation.z
-        ])
-
-        q2 = np.array([
-            future.orientation.w,
-            future.orientation.x,
-            future.orientation.y,
-            future.orientation.z
-        ])
-
-        q_rel = quat_multiply(q2, quat_inverse(present.orientation))
-        q_rel = q_rel / np.linalg.norm(q_rel)
-
-        # Log map of quaternion
-        angle = 2 * np.arctan2(np.linalg.norm(q_rel[1:]), q_rel[0])
-        axis = q_rel[1:] / (np.linalg.norm(q_rel[1:]) + 1e-12)
-
-        omega = axis * (angle / dt)
-
-        p = omega[0]   # roll rate
-        q = omega[1]   # pitch rate
-        r = omega[2]   # yaw rate
-
-        # =========================
-        # Return FULL pose + velocities
-        # =========================
-        return [
-            future.position.x,
-            future.position.y,
-            future.position.z,
-            future.orientation.x,
-            future.orientation.y,
-            future.orientation.z,
-            future.orientation.w,
-            u, v, r
-        ]
-
-
+    
     def str_input_callback(self, msg: String):
         self.input_string = msg.data.split()
 
     def updateRobotState(self):
         # Extract position and speed as column vectors
-        if self.use_quat:
-            position = np.array(self.rov.current_pose).reshape(-1, 1)
-        else:
-            position = np.array([self.rov.current_pose[x] for x in [0, 1, 5]]).reshape(-1, 1)
-
+        position = np.array([self.rov.current_pose[x] for x in [0, 1, 5]]).reshape(-1, 1)
         speed = np.array([self.rov.current_twist[x] for x in [0, 1, 5]]).reshape(-1, 1)
 
         # Concatenate vertically (stack columns)
         self.state = np.vstack([position, speed])
 
-        self.trainer.updateState(self.state.ravel())
+        self.trainer.updateState(self.state)
 
     def run(self):
         ################## Wait for the robot model to be initialized ##################
@@ -348,15 +238,12 @@ class Controller(Node):
             self.t0 = self.get_time() # Initial time for data collection
                     
             # Initialize trainer
-            self.trainer = PyTorchOnlineTrainer(self.rov, self.network, self.learning_rate, self.Q_weight, self.R_weight, self.use_quat)
+            self.trainer = PyTorchOnlineTrainer(self.rov, self.network, self.learning_rate, self.Q_weight, self.R_weight)
 
             train = self.get_parameter('train').get_parameter_value().bool_value #Boolean
 
             # Main training
-            if self.use_quat:
-                self.target = [0.,0.,0.,0.,0.,0.,1.,0.,0.,0.]
-            else:
-                self.target = [0.,0.,0.,0.,0.,0.] # Initial target
+            self.target = [0.,0.,0.,0.,0.,0.] # Initial target
 
             self.updateRobotState() # The trainer thread requires manual update of the robot's pose and twist
             self.trainer.updateTarget(self.target) # To be used for trajectory tracking
@@ -385,7 +272,6 @@ class Controller(Node):
                     self.future = None
                 return
 
-
         # Send new request
         request = RequestPath.Request()
         request.path_request.data = np.linspace(self.current_time, self.current_time + self.dt, 2, dtype=float)
@@ -394,19 +280,15 @@ class Controller(Node):
 
         if self.ai_path.poses: # Make sure the path is not empty
 
-            if self.use_quat:
-                self.target = self.compute_target_quat(self.ai_path)
-            else:
-                self.target = self.compute_target(self.ai_path)
-
+            self.target = self.compute_target(self.ai_path)
             self.trainer.updateTarget(self.target)
 
             # Display target in gazebo
-            target_pose = cf.make_pose(self.target, self.use_quat)
+            target_pose = cf.make_pose(self.target)
             cf.create_pose_marker(target_pose, self.pose_arrow_publisher)
 
         self.updateRobotState()
-        
+
         ################## Training automation ##################
 
         if self.trainer.loss and self.automate: # Make sure the loss has been initialized
@@ -432,13 +314,13 @@ class Controller(Node):
         ################## Save and publish data for monitoring ##################
 
         if self.trainer.trainer_set: # Make sure the training has started
-            x_m = self.trainer.state_display[0]
-            y_m = self.trainer.state_display[1]
-            psi_m = self.trainer.state_display[2]
+            x_m = self.trainer.state[0]
+            y_m = self.trainer.state[1]
+            psi_m = self.trainer.state[5]
 
-            x_d_m = self.trainer.target_display[0]
-            y_d_m = self.trainer.target_display[1]
-            psi_d_m = self.trainer.target_display[2]
+            x_d_m = self.trainer.target[0]
+            y_d_m = self.trainer.target[1]
+            psi_d_m = self.trainer.target[2]
 
             u = self.trainer.u.ravel()
             grad = self.trainer.gradient_display.ravel()
@@ -463,14 +345,12 @@ class Controller(Node):
             # self.get_logger().info(f"U: {self.trainer.u}") 
             # self.get_logger().info(f"Delta_t: {self.trainer.delta_t_display} \n") 
             # self.get_logger().info(f"\n Internal state: {self.trainer.state}")
-            # self.get_logger().info(f"\n Train target: {self.trainer.target}") 
             # self.get_logger().info(f"\n Internal error: {self.trainer.error}") 
             # self.get_logger().info(f"\n Train state: {self.trainer.state_train_display}")
-            self.get_logger().info(f"\n \n\n\nTrain error: {self.trainer.error_display}")
+            # self.get_logger().info(f"\n Train target: {self.trainer.target}") 
+            # self.get_logger().info(f"\n Train error: {self.trainer.error_display[2]}")
             # self.get_logger().info(f"\n Network input: {self.trainer.input_display}")
-            # self.get_logger().info(f"\nRobot coordinates: \n{self.trainer.robot_frame_display}")
-            # self.get_logger().info(f"\n Skew input: {self.trainer.skew}")
-            # self.get_logger().info()(f"\n previous_target: {self.trainer.previous_target}")
+            # self.get_logger().info(f"\n Network input: {self.trainer.skew}")
             
         ################## Stop training and record data ##################
         
