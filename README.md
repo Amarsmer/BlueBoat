@@ -45,7 +45,7 @@ The current recommended ROS2 version is Jazzy. All the related info can be found
 
 Gazebo will:
 
-- Subscribe to /blueboat/cmd_thruster[i] and /blueboat/cmd_thruster[i]_steering, and expect std_msgs/Float64 messages (for both), respectively being the thrust in Newton and the angle in radians.
+- Subscribe to /blueboat/cmd_thruster[i] and expect std_msgs/Float64 messages (thrust in Newton).
 - NOT YET IMPLEMENTED: ~~Publish sensor data to various topics (image, mpu+lsm for IMU, cloud for the sonar, odom)~~
 - Publish the ground truth on /blueboat/pose_gt. This pose is forwarded to /tf if pose_to_tf is used.
 
@@ -82,7 +82,7 @@ As QoL, some parameters can be set from terminal:
 
 Currently the training starts automatically. If considered satisfactory, it can be stopped and the associated weights saved with the following command:
 
-'ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: stop [weight_name]"'
+`ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: stop [weight_name]"`
 
 # License
 blueboat package is open-sourced under the MIT License. See the LICENSE file for details.
