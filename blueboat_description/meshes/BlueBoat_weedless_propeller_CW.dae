@@ -9,6 +9,40 @@
         <modified>Sun Mar 8 20:49:05 2026 GMT</modified>
         <up_axis>Y_UP</up_axis>
     </asset>
+        <library_images/>
+    <library_effects>
+        <effect id="ID955-effect">
+        <profile_COMMON>
+            <technique sid="common">
+            <phong>
+                <emission>
+                <color sid="emission">0 0 0 1</color>
+                </emission>
+                <ambient>
+                <color sid="ambient">0 0 0 1</color>
+                </ambient>
+                <diffuse>
+                <color sid="diffuse">1 1 0 1</color>
+                </diffuse>
+                <specular>
+                <color sid="specular">0.25 0.25 0.25 1</color>
+                </specular>
+                <shininess>
+                <float sid="shininess">50</float>
+                </shininess>
+                <index_of_refraction>
+                <float sid="index_of_refraction">1</float>
+                </index_of_refraction>
+            </phong>
+            </technique>
+        </profile_COMMON>
+        </effect>
+    </library_effects>
+    <library_materials>
+        <material id="ID955-material" name="ID955">
+        <instance_effect url="#ID955-effect"/>
+        </material>
+    </library_materials>
     <library_geometries>
         <geometry id="shape0-lib" name="shape0">
             <mesh>
