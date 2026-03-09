@@ -4,7 +4,7 @@ This repository contains the robot description and necessary launch files to des
 
 Additionnal steps are included to make sure this can be used starting from a fresh Ubuntu install.
 
-NOTE: This package is a modified version of the original [BlueROV2](https://github.com/CentraleNantesROV/bluerov2/tree/main)
+NOTE: This package is a modified version of the original [BlueROV2](https://github.com/CentraleNantesROV/bluerov2/tree/main), most of the physical and hydrodynamical properties are currently set on the bluerov2.
 
 # Requirements
 
