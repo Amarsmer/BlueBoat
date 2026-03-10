@@ -27,7 +27,7 @@
   <!-- Center of gravity -->
   <xacro:property name="z_cog" value="${-buoyant_correction*z_size}"/>
   
-  <xacro:property name="visual_mesh_file" value="package://blueboat_description/meshes/BlueBoat.stl"/>
+  <xacro:property name="visual_mesh_file" value="package://blueboat_description/meshes/BlueBoat.dae"/>
   <xacro:property name="collision_mesh_file" value="package://blueboat_description/meshes/BlueBoat.stl"/>
 
   <!-- Vehicle base link -->
@@ -37,11 +37,14 @@
         <origin xyz="0 0 ${z_cog}" rpy = "0 0 0"/>
         
     <!-- Inertia taken from: https://github.com/markusbuchholz/gazebosim_blueboat_ardupilot_sitl/blob/main/SITL_Models/Gazebo/models/blueboat/model.sdf-->   
-        <inertia ixx="2.42369" ixy="0" ixz="0" iyy="3.9235025" iyz="0" izz="5.6403125"/>
+        <!-- <inertia ixx="2.42369" ixy="0" ixz="0" iyy="3.9235025" iyz="0" izz="5.6403125"/> -->
+
+    <!-- Inertia computed from .stl file-->   
+        <inertia ixx="100.338" ixy="1.223" ixz="-3.53" iyy="70.777" iyz="1.188" izz="149.489"/>
         
     </inertial>
     <visual>
-        <origin xyz="0 0 ${z_cog}" rpy = "0 0 0"/>
+        <origin xyz="0 -0.01 ${z_cog+0.255}" rpy = "${pi/2} 0 0"/>
         <geometry>
         <mesh filename="${visual_mesh_file}"/>
         </geometry>
