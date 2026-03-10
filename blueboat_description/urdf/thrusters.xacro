@@ -79,11 +79,11 @@
   <!-- all thrusters -->
     
   <xacro:thruster thruster_id="1">
-    <origin xyz="-0.488 -0.295 -0.01" rpy="0 0 0"/>
+    <origin xyz="-0.488 -0.295 -0.025" rpy="0 0 0"/>
   </xacro:thruster>
   
   <xacro:thruster thruster_id="2">
-    <origin xyz="-0.488 0.295 -0.01" rpy="0 0 0"/>
+    <origin xyz="-0.488 0.295 -0.025" rpy="0 0 0"/>
   </xacro:thruster>
 
 

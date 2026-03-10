@@ -11,6 +11,8 @@
         
     <link_name>${ns}/base_link</link_name>
 
+    <!-- LIEVORE, MARCO. "Autonomous usv navigation and control for auv tracking via optimal, 
+    collision-free trajectory generation." -->
         
     <!-- BlueROV2 heavy values from "6-DoF Modelling and Control of a Remotely Operated Vehicle"
         Wu, Master thesis, Flinder University, 2018  -->

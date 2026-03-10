@@ -44,11 +44,11 @@ class Controller(Node):
         
         self.future = None # Used for client requests
 
-        self.timer = self.create_timer(0.001, self.move)
+        self.timer = self.create_timer(0.01, self.move)
 
         # MPC Parameters
         self.mpc_horizon = 10
-        self.mpc_time = 4.0
+        self.mpc_time = 2.0
         self.mpc_path = Path()
         linear_bound = 40.0
         angular_bound = 15.0
