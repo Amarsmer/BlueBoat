@@ -8,10 +8,9 @@ sl.declare_arg('sliders',default_value=True)
 sl.declare_arg('camera', True)
 sl.declare_arg('gazebo_world_name', 'none')
 
-sl.declare_arg('thr','thrusters')
-sl.declare_arg('spawn_pose', default_value = "0.0 0.0 0.0 0.0 0.0 0.0")
+sl.declare_arg('thr','thrusters_ur')
 
-sl.declare_gazebo_axes(x=-1., y=0., z=-0.1, roll=0.,pitch=0., yaw=0.)
+sl.declare_gazebo_axes(x=0., y=0., z=-0.1, roll=0.,pitch=0., yaw=0.)
 
 def launch_setup():
     
@@ -51,11 +50,17 @@ def launch_setup():
             sl.node('pose_to_tf',parameters={'child_frame': ns+'/base_link_gt'})
         
         # thrusters and steering
+        if thr == 'thrusters_ur':
+            for t in range(1, 3):
+                thruster = f'thruster{t}'
+                gz_thr_topic = f'/{ns}/{thruster}/cmd'
+                bridges.append(GazeboBridge(gz_thr_topic, f'cmd_{thruster}', 'std_msgs/Float64', GazeboBridge.ros2gz))
 
-        for t in range(1, 3):
-            thruster = f'thruster{t}'
-            gz_thr_topic = f'/{ns}/{thruster}/cmd'
-            bridges.append(GazeboBridge(gz_thr_topic, f'cmd_{thruster}', 'std_msgs/Float64', GazeboBridge.ros2gz))
+        elif thr == 'thrusters_uvr':
+            for t in range(1, 4):
+                thruster = f'thruster{t}'
+                gz_thr_topic = f'/{ns}/{thruster}/cmd'
+                bridges.append(GazeboBridge(gz_thr_topic, f'cmd_{thruster}', 'std_msgs/Float64', GazeboBridge.ros2gz))
 
         sl.create_gz_bridge(bridges)
 

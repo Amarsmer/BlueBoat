@@ -70,7 +70,7 @@
     </link>
   
 <xacro:include filename="hydrodynamics.xacro"/>
-<xacro:include filename="thrusters.xacro"/>
+<xacro:include filename="$(arg thrusters).xacro"/>
 <!-- <xacro:include filename="sensors.xacro"/> -->
 
   

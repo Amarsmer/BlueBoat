@@ -10,6 +10,18 @@ from scipy.spatial.transform import Rotation as R
 import numpy as np
 import os
 
+#################### BlueBoat Interaction ####################
+class BlueBoat():
+    def __init__(self, node: Node):
+
+        self.node = node
+        
+        # Pose
+        self.current_pose = None
+        self.current_twist = None
+
+        self.odom_sub = node.create_subscription(Odometry, 'odom', self.odom_cb, 1)
+
 #################### Gazebo interaction ####################
 def pause_gz(pause):
     os.system(f'gz service -s /world/ocean/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --req \'pause: {pause}\' --timeout 1000')

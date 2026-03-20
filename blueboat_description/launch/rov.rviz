@@ -77,6 +77,11 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        blueboat/thruster3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
@@ -98,6 +103,8 @@ Visualization Manager:
           Value: true
         blueboat/thruster2:
           Value: true
+        blueboat/thruster3:
+          Value: true
         world:
           Value: true
       Marker Scale: 1
@@ -111,6 +118,8 @@ Visualization Manager:
             blueboat/thruster1:
                 {}
             blueboat/thruster2:
+                {}
+            blueboat/thruster3:
                 {}
       Update Interval: 0
       Value: true
@@ -174,6 +183,27 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /blueboat/blueboat_thruster2_wrench
+      Torque Arrow Scale: 0.2
+      Arrow Width: 0.3
+      Torque Color: 255; 0; 0
+      Value: true
+    - Accept NaN Values: false
+
+      Alpha: 1
+      Arrow Width: 0.5
+      Class: rviz_default_plugins/Wrench
+      Enabled: true
+      Force Arrow Scale: 0.1
+      Force Color: 255; 0; 0
+      History Length: 1
+      Name: Wrench_3
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /blueboat/blueboat_thruster3_wrench
       Torque Arrow Scale: 0.2
       Arrow Width: 0.3
       Torque Color: 255; 0; 0

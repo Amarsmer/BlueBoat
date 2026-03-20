@@ -10,3 +10,9 @@ cmd_thruster2:
         min: -40
         max: 40
         to: data
+cmd_thruster3:
+    type: std_msgs/Float64
+    thrust:
+        min: -40
+        max: 40
+        to: data

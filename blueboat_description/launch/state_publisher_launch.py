@@ -6,7 +6,7 @@ sl = SimpleLauncher(use_sim_time = False)
 sl.declare_arg('namespace', default_value='blueboat')
 sl.declare_arg('jsp', True)
 sl.declare_arg('rviz', True)
-sl.declare_arg('thr','thrusters')
+sl.declare_arg('thr','thrusters_ur')
 
 
 def launch_setup():
