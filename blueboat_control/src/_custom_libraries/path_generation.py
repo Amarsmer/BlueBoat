@@ -70,9 +70,9 @@ class PathGeneration(Node):
 
         # Sin line
         if path_shape == 'sin':
-            a = 1
-            f = 0.5
-            vx = 0.5
+            a = 2
+            f = 0.2
+            vx = 0.4
 
             x = vx*t
             y = 1.0 + a * np.sin(f*t)
@@ -81,6 +81,30 @@ class PathGeneration(Node):
             dx = vx
             dy = a * f * np.cos(f*t)
             yaw = np.arctan2(dy, dx)
+
+        # Surge sin
+        if path_shape == 'fsin':
+            v = 0.1
+            A = 1
+            f = 0.05
+            dt = 0.01
+
+            x = 0.0
+            y = 0.0
+            z = 0.0
+
+            yaw = 0.0
+
+            steps = int(t / dt)
+
+            for i in range(steps):
+                tau = i * dt
+
+                omega = A * np.sin(2 * np.pi * f * tau)
+                yaw += omega * dt
+
+                x += v * np.cos(yaw) * dt
+                y += v * np.sin(yaw) * dt
 
         # Square wave
         if path_shape == 'square':

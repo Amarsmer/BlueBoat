@@ -75,6 +75,7 @@ class PathController(Node):
         self.monitoring.append(['t','x','y','psi','x_d','y_d','psi_d','u1','u2','u3']) # Naming the variables in the first row, useful as is and even more so if data points change between version
 
         self.date = datetime.today().strftime('%Y_%m_%d-%H_%M_%S')
+        self.title = 'data/PID_data/' + self.date + '-PID_data'
 
     def get_time(self):
         s,ns = self.get_clock().now().seconds_nanoseconds()
@@ -162,7 +163,7 @@ class PathController(Node):
                     result = self.future.result()
                     if result is not None:
                         self.path = result.path
-                        # self.get_logger().info(f"Received path with {len(self.mpc_path.poses)} poses.")
+                        # self.get_logger().info(f"Received path with {len(self.path.poses)} poses.")
                     else:
                         self.get_logger().error("Service returned None.")
                 except Exception as e:
@@ -196,63 +197,40 @@ class PathController(Node):
 
         ################## Save and publish data for monitoring ##################
 
-        if False:
-            x_m = self.trainer.state[0]
-            y_m = self.trainer.state[1]
-            psi_m = self.trainer.state[5]
 
-            x_d_m = self.trainer.target[0]
-            y_d_m = self.trainer.target[1]
-            psi_d_m = self.trainer.target[2]
+        # Update and save monitoring metrics to be graphed later # TODO adjust variables
+        if self.path.poses and False:
+            x_m = x_current[0]
+            y_m = x_current[1]
+            psi_m = x_current[2]
 
-            u = self.trainer.u.ravel()
-            grad = self.trainer.gradient_display.ravel()
-            loss = self.trainer.loss_display.ravel()
-            skew = self.trainer.skew
-            t = self.get_time() - self.t0
+            x_d_m = desired_pose.position.x
+            y_d_m = desired_pose.position.y
 
-            data_array = [x_m, y_m, psi_m, x_d_m, y_d_m , psi_d_m, u[0],u[1], grad[0], grad[1], loss[0], loss[1], skew, t]
+            q = desired_pose.orientation
+            siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+            cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+            psi_d_m = math.atan2(siny_cosp, cosy_cosp)
+
+            data_array = [x_m, y_m, psi_m, x_d_m, y_d_m , psi_d_m, u[0],u[1],u[2], t]
 
             self.monitoring.append(data_array)
 
             publisher_msg = Float32MultiArray()
             publisher_msg.data = data_array
             self.data_publisher.publish(publisher_msg)
+            # self.get_logger().info(f'Publishing: {msg.data}')
+
+            if (t - self.t_record) > 1: # Update the saved file every second as doing so every step may corrupt the file if the callback is too frequent
+                self.t_record = t
+                np.save(self.title, self.monitoring)
 
             publisher_msg = Float32MultiArray()
             publisher_msg.data = self.trainer.error_display
             self.network_publisher.publish(publisher_msg)
             
             # Debug info
-            # self.get_logger().info(f"Grad: {self.trainer.gradient_display}") 
-            # self.get_logger().info(f"U: {self.trainer.u}") 
-            # self.get_logger().info(f"Delta_t: {self.trainer.delta_t_display} \n") 
-            # self.get_logger().info(f"\n Internal state: {self.trainer.state}")
-            # self.get_logger().info(f"\n Internal error: {self.trainer.error}") 
-            # self.get_logger().info(f"\n Train state: {self.trainer.state_train_display}")
-            # self.get_logger().info(f"\n Train target: {self.trainer.target}") 
-            # self.get_logger().info(f"\n Train error: {self.trainer.error_display[2]}")
-            # self.get_logger().info(f"\n Network input: {self.trainer.input_display}")
-            # self.get_logger().info(f"\n Network input: {self.trainer.skew}")
-            
-        ################## Stop training and record data ##################
-        
-        if False: # Stop training session from terminal
-            weight_name = self.input_string[1]
-            self.input_string = ['','']
-            self.trainer.running = False
-            self.training_thread.join(timeout=5)
-
-            # Save the weights
-            json_obj = self.network.save_weights_to_json()
-            with open(f'saved_weights/{weight_name}.json', 'w') as fp:
-                
-                json.dump(json_obj, fp)
-
-            self.get_logger().info("Training stopped")
-
-            title = f'data/AI_data/{self.date}-weightfile_{weight_name}-HL_{self.HL_size}-AI_data'
-            np.save(title, self.monitoring)
+            # self.get_logger().info(f"Text: {data}") 
 
 
 rclpy.init()
