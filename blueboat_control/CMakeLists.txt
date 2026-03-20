@@ -29,6 +29,8 @@ install(PROGRAMS src/MPC/uvr_mpc.py
 
 install(PROGRAMS src/_custom_libraries/path_publisher.py
         DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS src/_custom_libraries/PID_path.py
+        DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS src/_custom_libraries/path_generation.py
         DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS src/_custom_libraries/custom_functions.py

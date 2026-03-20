@@ -20,11 +20,12 @@ def convert(v):
 class ROV:
 
     def __init__(self, node: Node,
-                 thrust_visual = False):
+                 thrust_visual = False,
+                 PID = False):
 
         self.node = node
         self.display_wrench = thrust_visual # Creating and storing the bool so it may be accessed and changed during simulation if the need arises
-
+        self.PID = PID
         self.robot_sub = node.create_subscription(String, 'robot_description',
                                                 self.read_model,
                                                 QoSProfile(depth=1,
@@ -85,9 +86,10 @@ class ROV:
     def move(self, forces, angles=0):
 
         msg = Float64()
-        for i, val in enumerate(forces):
-            msg.data = float(val)
-            self.thruster_pub[i].publish(msg)
+        if not self.PID:
+            for i, val in enumerate(forces):
+                msg.data = float(val)
+                self.thruster_pub[i].publish(msg)
         # for i, val in enumerate(angles):
         #     msg.data = float(val)
         #     self.joint_pub[i].publish(msg)

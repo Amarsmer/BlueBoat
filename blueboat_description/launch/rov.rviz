@@ -210,7 +210,7 @@ Visualization Manager:
       Value: true
     - Accept NaN Values: false
 
-      Alpha: 1
+      Alpha: 0
       Arrow Width: 0.5
       Class: rviz_default_plugins/Pose
       Color: 255; 25; 0
