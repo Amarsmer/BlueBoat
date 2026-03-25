@@ -10,7 +10,7 @@ sl.declare_arg('gazebo_world_name', 'none')
 
 sl.declare_arg('thr','thrusters_ur')
 
-sl.declare_gazebo_axes(x=0., y=0., z=-0.1, roll=0.,pitch=0., yaw=0.)
+sl.declare_gazebo_axes(x=-0.1, y=0., z=-0.1, roll=0.,pitch=0., yaw=0.)
 
 def launch_setup():
     

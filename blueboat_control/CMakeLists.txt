@@ -36,7 +36,12 @@ install(PROGRAMS src/_custom_libraries/path_generation.py
         DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS src/_custom_libraries/custom_functions.py
         DESTINATION lib/${PROJECT_NAME})
-install(PROGRAMS src/_custom_libraries/interface.py
+
+install(PROGRAMS src/robot_interaction/interface.py
+        DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS src/robot_interaction/param_set.py
+        DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS src/robot_interaction/uwgps_log.py
         DESTINATION lib/${PROJECT_NAME})
 
 ament_python_install_package(${PROJECT_NAME})

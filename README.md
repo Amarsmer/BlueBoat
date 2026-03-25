@@ -84,5 +84,23 @@ Currently the training starts automatically. If considered satisfactory, it can 
 
 `ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: stop [weight_name]"`
 
+## Real robot
+Depending on the type of control, the parameter "SYSID_MYGCS" has to be changed accordingly.
+For the X box controller override, it should be set to "255"
+For ros2 interaction, it should be set to "1"
+
+For safety, any control can be disabled manually following instruction:
+
+`ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: stop"`
+
+To enable it:
+
+`ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: enable"`
+
+Direct thruster input requires specific parameter modification that may be unwanted for other applications, this can be controlled by:
+
+`ros2 topic pub --once /blueboat/param_str std_msgs/msg/String "data: default"`
+
+
 # License
 blueboat package is open-sourced under the MIT License. See the LICENSE file for details.

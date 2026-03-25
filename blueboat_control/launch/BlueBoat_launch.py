@@ -8,7 +8,7 @@ sl_motors = sl.declare_arg('enable_motors', default_value = False)
 
 def launch_setup():
     # sl.include('blueboat_description', 'world_launch.py', launch_arguments={'sliders': False, 'spawn_pose': sl_spawn})
-
+    
     sl.node('mavros',        # package
             'mavros_node',   # executable
             output='screen',
@@ -21,10 +21,12 @@ def launch_setup():
 
     sl.node('blueboat_control', 'interface.py', parameters={'enable_motors' : sl_motors,
                                                             'use_sim_time': False})
+                                                        
+    sl.node('blueboat_control', 'param_set.py')
 
     # sl.node('blueboat_control', 'path_generation.py', parameters={'trajectory' : sl_trajectory})
-
-    # sl.node('blueboat_control', 'path_publisher.py')
+    
+    sl.node('blueboat_control', 'uwgps_log.py', parameters={'use_sim_time': False})
 
     # sl.node('blueboat_control', 'ur_mpc_control.py')
 
