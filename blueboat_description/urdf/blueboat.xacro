@@ -15,7 +15,7 @@
   <xacro:property name="y_size" value="0.91"/>
   <xacro:property name="z_size" value="0.376"/>
 
-  <xacro:property name="mass" value="30.0"/>
+  <xacro:property name="mass" value="16.01"/>
       
   <!-- other props -->
   <xacro:property name="prop_mass" value="0.07"/>
@@ -53,7 +53,7 @@
     </visual>
     
     <collision>
-        <origin xyz="0 0 0"/>
+        <origin xyz="0 0 0.05"/>
         <!-- Box adjusted for buoyancy -->
         <geometry>
             <box size="${x_size*buoyant_correction} ${y_size*buoyant_correction} ${z_size*buoyant_correction}"/>

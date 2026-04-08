@@ -50,57 +50,31 @@ Gazebo will:
 - Publish the ground truth on /blueboat/pose_gt. This pose is forwarded to /tf if pose_to_tf is used.
 
 # High-level control
+Both control schemes are handled by the same node that takes the desired control and trajectory as a launch argument:
 
-## PID
-Basic control is available in the [auv_control package](https://github.com/CentraleNantesROV/auv_control)
-
-The full launch file for cascaded PID control (including world launch) is ran with:
-
-`ros2 launch blueboat_control PID_launch.py`
-
-The target can be adjusted with sliders (currently not compatible with path generation).
-
-## MPC
-The full launch file for MPC control (including world launch) is ran with:
-
-`ros2 launch blueboat_control MPC_launch.py`
-
-The trajectory can be selected as an argument, for example:
-
-`ros2 launch blueboat_control MPC_launch.py trajectory:='sin'`
+`ros2 launch blueboat_control Sim_launch.py controller_type:='PID' trajectory:='sin'`
 
 The full list of trajectories is found in blueboat_control/src/_custom_libraries/path_generation.py
 
-## AI
-The full launch file for AI training and control (including world launch) is ran with:
-
-`ros2 launch blueboat_control AI_launch.py`
-
-As QoL, some parameters can be set from terminal:
-
-`ros2 launch blueboat_control AI_launch.py trajectory:='sin' weight_name:='name' train:=True`
-
-Currently the training starts automatically. If considered satisfactory, it can be stopped and the associated weights saved with the following command:
-
-`ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: stop [weight_name]"`
-
 ## Real robot
-Depending on the type of control, the parameter "SYSID_MYGCS" has to be changed accordingly.
-For the X box controller override, it should be set to "255"
-For ros2 interaction, it should be set to "1"
+This code is meant to interact with the BlueRobotics BlueBoat: https://bluerobotics.com/store/boat/blueboat/blueboat/
 
-For safety, any control can be disabled manually following instruction:
+Interaction with ROS2 uses the blue-os ROS2 app (can be directly installed through BlueOS app tab): https://github.com/itskalvik/blueos-ros2
 
-`ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: stop"`
+The launch file that handles every robot interaction and control can be run with:
 
-To enable it:
+`ros2 launch blueboat_control BlueBoat_launch.py`
 
-`ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: enable"`
+Different parameters can be handled through a single instruction:
 
-Direct thruster input requires specific parameter modification that may be unwanted for other applications, this can be controlled by:
+`ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: [value]"`
 
-`ros2 topic pub --once /blueboat/param_str std_msgs/msg/String "data: default"`
-
+The list of available [value] is as follows:
+ - 'enable': no input will be sent to the thrusters until this has been called
+ - 'stop': opposite of previous command, stops the robot and disable thrusters
+ - 'override': disables default thruster mapping of the robot, used to send input directly to the motors (used for various controllers and terminal control, makes control through the xbox controller mpossible)
+ - 'default': restores default mapping, to be used before closing the terminal
+ - 'move': typical instruction follows the shape 'move [float_left] [float_right] [float_time]', it will set the float_left and float_right inputs to the thrusters and apply it for the float_time duration (seconds)
 
 # License
 blueboat package is open-sourced under the MIT License. See the LICENSE file for details.

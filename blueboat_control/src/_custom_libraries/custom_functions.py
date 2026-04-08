@@ -9,6 +9,13 @@ from visualization_msgs.msg import Marker
 from scipy.spatial.transform import Rotation as R
 import numpy as np
 import os
+from scipy.interpolate import PchipInterpolator
+
+
+def generate_interpolator():
+    pwm = np.array([1100,1110,1136,1162,1188,1214,1240,1266,1292,1318,1344,1370,1396,1422,1448,1474,1500,1526,1552,1578,1604,1630,1656,1682,1708,1734,1760,1786,1812,1838,1864,1890,1900])
+    thr = 9.80665*np.array([-2.81,-2.78,-2.64,-2.42,-2.21,-2.04,-1.83,-1.57,-1.42,-1.2,-0.98,-0.82,-0.6,-0.41,-0.24,-0.09,0,0.21,0.5,0.82,1.17,1.58,1.93,2.37,2.76,3.23,3.57,3.99,4.36,4.84,5.22,5.45,5.63])
+    return PchipInterpolator(thr, pwm)
 
 #################### BlueBoat Interaction ####################
 class BlueBoat():
@@ -77,6 +84,41 @@ def odometry(msg, quat = False):
     twist = [u,v,w,p,q,r]
 
     return pose, twist
+
+def compute_target(path, dt):
+
+    def get_yaw_from_quaternion(q):
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        return np.arctan2(siny_cosp, cosy_cosp)
+
+    # Extract current target and next step target
+    poses = path.poses[:2]
+    present = poses[0].pose
+    future = poses[1].pose
+
+    # Compute position
+    x = future.position.x
+    y = future.position.y
+    psi = get_yaw_from_quaternion(future.orientation)
+    psi = (psi + np.pi) % (2 * np.pi) - np.pi
+
+    # Compute speeds
+    dx = x - present.position.x
+    dy = y - present.position.y
+    u = np.hypot(dx, dy) / dt
+
+    psi_prev = get_yaw_from_quaternion(present.orientation)
+
+    psi_mid = (psi + psi_prev) / 2.0
+    dx_b =  np.cos(psi_mid) * dx + np.sin(psi_mid) * dy
+    dy_b = -np.sin(psi_mid) * dx + np.cos(psi_mid) * dy
+    v = dy_b / dt 
+
+    dpsi = (psi - psi_prev + np.pi) % (2 * np.pi) - np.pi
+    r = dpsi / dt
+    
+    return [x, y, psi, u, v, r]
 
 def planeFromQuaternion(inState):
     # Extract position

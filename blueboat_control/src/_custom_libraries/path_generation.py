@@ -41,8 +41,8 @@ class PathGeneration(Node):
 
         # Station keeping
         if path_shape == 'station_keeping':
-            x = 0.0
-            y = 0.0
+            x = 20.0
+            y = 25.0
             z = 0.0
             roll = 0.0
             pitch = 0.0
@@ -63,23 +63,27 @@ class PathGeneration(Node):
 
         # Straight line
         if path_shape == 'straight_line':
-            x = 0.7*t
-            y = 0.0*t
+            x = 0.5*t
+            y = 0.0*t + 1.0
             z = 0.0
             yaw = 0.0
 
         # Sin line
         if path_shape == 'sin':
-            a = 2
+            if t>50:
+                t = 50
+            a = 1.5
             f = 0.2
             vx = 0.4
 
-            x = vx*t
-            y = 1.0 + a * np.sin(f*t)
+            t *= 0.7
+
+            x = 0.5 + vx*t
+            y = 0. + a * (np.sin(f*t-np.pi/2) + 1)
             z = 0.0
 
             dx = vx
-            dy = a * f * np.cos(f*t)
+            dy = a * f * np.cos(f*t - np.pi/2)
             yaw = np.arctan2(dy, dx)
 
         # Surge sin
@@ -132,10 +136,12 @@ class PathGeneration(Node):
 
         # Kinematic square wave
         if path_shape == 'kin_square':
-            segment_length = 6.0
-            surge_speed = 0.4
+            if t>50:
+                t= 50
+            segment_length = 5.0
+            surge_speed = 0.3
             z = 0.0
-            t *= 1.5
+            t *= 1.
             # Time per segment
             segment_time = segment_length / surge_speed
 

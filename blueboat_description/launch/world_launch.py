@@ -6,7 +6,7 @@ def generate_launch_description():
     sl = SimpleLauncher()
     sl.declare_arg('gui', default_value=True)
     sl.declare_arg('spawn', default_value=True)
-    sl.declare_arg('thr',default_value = 'thrusters')
+    sl.declare_arg('thr',default_value = 'thrusters_ur')
     sl.declare_arg('spawn_pose', default_value = "0.0 0.0 0.0 0.0 0.0 0.0")
 
     with sl.group(if_arg='gui'):

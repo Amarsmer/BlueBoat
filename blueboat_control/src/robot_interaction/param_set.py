@@ -14,17 +14,18 @@ class BlueBoatParameterControl(Node):
     def __init__(self):
         super().__init__('blueboat_parameter_control')
 
-        # services
-        self.pull_client = self.create_client(ParamPull, '/mavros/param/pull')
-        self.get_client = self.create_client(GetParameters, '/mavros/param/get_parameters')
-        self.set_client = self.create_client(SetParameters, '/mavros/param/set_parameters')
+        ################## ROS2 Communication ##################
+        # publishers
+        self.ready_pub = self.create_publisher(Bool, '/blueboat/param_ready', 10)
+        self.mode_pub = self.create_publisher(String, '/blueboat/param_mode', 10)
 
         # subscriber
         self.sub = self.create_subscription(String,'/blueboat/param_str',self.callback,10)
 
-        # publishers
-        self.ready_pub = self.create_publisher(Bool, '/blueboat/param_ready', 10)
-        self.mode_pub = self.create_publisher(String, '/param_mode', 10)
+        # services
+        self.pull_client = self.create_client(ParamPull, '/mavros/param/pull')
+        self.get_client = self.create_client(GetParameters, '/mavros/param/get_parameters')
+        self.set_client = self.create_client(SetParameters, '/mavros/param/set_parameters')
 
         # state
         self.params_ready = False
@@ -39,7 +40,6 @@ class BlueBoatParameterControl(Node):
             while not cli.wait_for_service(timeout_sec=1.0):
                 pass
 
-    # ------------------ CALLBACK ENTRY ------------------
 
     def callback(self, msg: String):
         mode = msg.data.strip()
@@ -50,7 +50,6 @@ class BlueBoatParameterControl(Node):
 
         self.apply_mode(mode)
 
-    # ------------------ MODE LOGIC ------------------
 
     def apply_mode(self, mode):
         self.pending_mode = mode
@@ -65,7 +64,6 @@ class BlueBoatParameterControl(Node):
 
         self.pull_params()
 
-    # ------------------ ASYNC CHAIN ------------------
 
     def pull_params(self):
         req = ParamPull.Request()
@@ -132,7 +130,6 @@ class BlueBoatParameterControl(Node):
 
         self.publish_state()
 
-    # ------------------ HELPERS ------------------
 
     def _set_param_async(self, name, value):
         param = Parameter()

@@ -32,7 +32,7 @@ class Controller(Node):
 
         self.rov = ROV(self, thrust_visual = True)
 
-        self.odom_subscriber = self.create_subscription(Odometry, '/blueboat/odom', self.odom_callback, 10)
+        self.odom_sim_subscriber = self.create_subscription(Odometry, '/blueboat/odom', self.odom_callback, 10)
         self.pose_arrow_publisher = self.create_publisher(Marker, "/pose_arrow", 10)
         self.data_publisher = self.create_publisher(Float32MultiArray, "/monitoring_data", 10)
 

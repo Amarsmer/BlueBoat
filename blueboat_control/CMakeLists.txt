@@ -10,13 +10,6 @@ find_package(rosidl_default_generators REQUIRED)
 
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
-install(PROGRAMS src/AI/AI_run.py
-        DESTINATION lib/${PROJECT_NAME})
-install(PROGRAMS src/AI/online_training.py
-        DESTINATION lib/${PROJECT_NAME})
-install(PROGRAMS src/AI/backprop.py
-        DESTINATION lib/${PROJECT_NAME})
-
 install(PROGRAMS src/MPC/ur_mpc_control.py
         DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS src/MPC/uvr_mpc_control.py
@@ -27,7 +20,7 @@ install(PROGRAMS src/MPC/ur_mpc.py
 install(PROGRAMS src/MPC/uvr_mpc.py
         DESTINATION lib/${PROJECT_NAME})
 
-install(PROGRAMS src/PID/PID_path.py
+install(PROGRAMS src/PID/PID.py
         DESTINATION lib/${PROJECT_NAME})
 
 install(PROGRAMS src/_custom_libraries/path_publisher.py
@@ -37,11 +30,16 @@ install(PROGRAMS src/_custom_libraries/path_generation.py
 install(PROGRAMS src/_custom_libraries/custom_functions.py
         DESTINATION lib/${PROJECT_NAME})
 
-install(PROGRAMS src/robot_interaction/interface.py
+install(PROGRAMS src/robot_interaction/robot_interface.py
         DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS src/robot_interaction/param_set.py
         DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS src/robot_interaction/uwgps_log.py
+        DESTINATION lib/${PROJECT_NAME})
+
+install(PROGRAMS src/master_control.py
+        DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS src/simulation_interface.py
         DESTINATION lib/${PROJECT_NAME})
 
 ament_python_install_package(${PROJECT_NAME})

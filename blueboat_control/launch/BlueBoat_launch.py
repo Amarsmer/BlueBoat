@@ -2,13 +2,15 @@ from simple_launch import SimpleLauncher
 
 sl = SimpleLauncher(use_sim_time = True)
 
-sl_trajectory = sl.declare_arg('trajectory', default_value = 'station_keeping')
-sl_spawn = sl.declare_arg('spawn_pose', default_value='0.0 0.0 0.0')
-sl_motors = sl.declare_arg('enable_motors', default_value = False)
+sl_motors = sl.declare_arg('enable_motors', default_value = False)              # Safety measure to test the program without sending inputs to the robot
+sl_note = sl.declare_arg('note', default_value= '')                             # Add additionnal info on the log name
+sl_controller = sl.declare_arg('controller_type', default_value = '')           # As an option, it is possible to launch a controller along the robot interaction
+sl_trajectory = sl.declare_arg('trajectory', default_value = 'station_keeping') # Trajectory reference for the control
+sl_pinger = sl.declare_arg('use_pinger', default_value = False)                 # Tell the controller to rely on pinger coordinates or computed trajectory
 
 def launch_setup():
-    # sl.include('blueboat_description', 'world_launch.py', launch_arguments={'sliders': False, 'spawn_pose': sl_spawn})
-    
+
+    # Connect to the robot
     sl.node('mavros',        # package
             'mavros_node',   # executable
             output='screen',
@@ -19,16 +21,39 @@ def launch_setup():
                 'target_component_id': 1
             }])
 
-    sl.node('blueboat_control', 'interface.py', parameters={'enable_motors' : sl_motors,
-                                                            'use_sim_time': False})
-                                                        
-    sl.node('blueboat_control', 'param_set.py')
+    # Robot interaction
+    sl.node('blueboat_control', 
+            'robot_interface.py', 
+            parameters={'enable_motors' : sl_motors,
+                        'note' : sl_note,
+                        'controller_type' : sl_controller,
+                        'use_sim_time': False})
 
-    # sl.node('blueboat_control', 'path_generation.py', parameters={'trajectory' : sl_trajectory})
-    
-    sl.node('blueboat_control', 'uwgps_log.py', parameters={'use_sim_time': False})
+    # Connect to the pinger and log data
+    sl.node('blueboat_control', 
+            'uwgps_log.py', 
+            parameters={'use_sim_time': False})
 
-    # sl.node('blueboat_control', 'ur_mpc_control.py')
+    # Handle parameter setting (mainly used to override motor control for teleoperation)                                       
+    sl.node('blueboat_control', 
+            'param_set.py')
+
+    # Check if controller is enabled
+    if sl.arg('controller_type') != '':
+
+        # Controller
+        sl.node('blueboat_control', 
+                'master_control.py', 
+                parameters={'controller_type' : sl_controller,
+                            'simulation' : False,
+                            'use_pinger': sl_pinger})
+
+        if not sl.arg('use_pinger'):
+                # Compute trajectory and target
+                sl.node('blueboat_control', 
+                        'path_generation.py', 
+                        parameters={'trajectory' : sl_trajectory})
+
 
     return sl.launch_description()
 
