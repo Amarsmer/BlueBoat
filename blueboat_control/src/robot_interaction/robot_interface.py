@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 import numpy as np
 import pandas as pd
+import math
 from scipy.spatial.transform import Rotation as R
 import transformations as tf_transformations
 
@@ -16,7 +17,8 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 # msg import
 from std_msgs.msg import String, Bool, Float32MultiArray
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Imu
+from geometry_msgs.msg import Quaternion
+from sensor_msgs.msg import Imu, NavSatFix
 from mavros_msgs.msg import State
 
 # srv import
@@ -50,13 +52,19 @@ class BlueBoatController(Node):
         self.plot_publisher = self.create_publisher(Float32MultiArray, "blueboat/monitoring_data", 10)
 
         ## Subscribers
+        # Node interaction
         self.str_input_subscriber = self.create_subscription(String, '/blueboat/input_str', self.str_input_callback, 10)
         self.ready_sub = self.create_subscription(Bool,'/blueboat/param_ready',self.param_callback,10)
         self.mode_sub = self.create_subscription(String, '/blueboat/param_mode',self.mode_callback,10)
 
-        self.connection_state_sub = self.create_subscription(State,'/mavros/state',self.state_callback,10)
-        self.imu_sub = self.create_subscription(Imu,'/mavros/imu/data', self.imu_callback, QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT))
+        # Robot sensor
+        qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.robot_state_sub = self.create_subscription(State,'/mavros/state',self.state_callback,10)
+        self.imu_sub = self.create_subscription(Imu,'/mavros/imu/data', self.imu_callback, qos)
+        self.local_odom_sub = self.create_subscription(Odometry, '/mavros/local_position/odom', self.odom_callback, qos)
+        self.gps_sub = self.create_subscription(NavSatFix, '/mavros/global_position/global', self.gps_callback, qos)
 
+        # Data logging
         self.uw_gps_sub = self.create_subscription(Float32MultiArray,'/uw_gps_data', self.uw_gps_callback,10)
         self.target_sub = self.create_subscription(Float32MultiArray,'/controller_target', self.target_callback,10)
         self.thruster_input_sub = self.create_subscription(Float32MultiArray, "/thruster_input", self.thr_input_callback,10)
@@ -67,7 +75,7 @@ class BlueBoatController(Node):
         self.cmd_client = self.create_client(CommandLong, '/mavros/cmd/command')
 
         ################## Initialize ##################
-        self.connection_state = State()
+        self.robot_state = State()
 
         # Main loop initialization variables
         self.init = False
@@ -82,10 +90,15 @@ class BlueBoatController(Node):
 
         self.time_set = False
 
-        ### IMU and dead reckoning parameters
+        ### Sensors and dead reckoning parameters
+        # IMU
         self.orientation = None
         self.angular_velocity = None
         self.linear_acceleration = None
+
+        # GPS 
+        self.gps_data = [0,0] # latitude, longitude
+        self.pinger_gps = [0,0]
 
         self.prev_time = None
         self.vel = np.zeros(3)
@@ -93,12 +106,11 @@ class BlueBoatController(Node):
         self.yaw0 = None # Used to start the starting yaw at 0 regardless of actual orientation
 
         ## Control
-        # LoS gains
-        self.k_v = 0.03
-        self.k_psi = 20.0
 
+        self.relative_coordinates = [0,0,0]
         self.target = [0,0,0]
         self.pinger_coordinates = np.zeros(3)
+        self.corrected_pinger = [0,0]
         self.thruster_input = [0,0]
 
         ################## Initialize PWM control ##################
@@ -135,9 +147,18 @@ class BlueBoatController(Node):
                              'lin_acc_x',
                              'lin_acc_y',
                              'lin_acc_z',
+                             'relative_x',
+                             'relative_y',
+                             'relative_psi',
                              'target_x',
                              'target_y',
                              'target_psi',
+                             'corrected_pinger_x',
+                             'corrected_pinger_y',
+                             'gps_latitude',
+                             'gps_longitude',
+                             'pinger_latitude',
+                             'pinger_longitude',
                              'left_thr_in',
                              'right_thr_in']
 
@@ -149,7 +170,7 @@ class BlueBoatController(Node):
                                   columns=self.data_columns)
 
         self.date = datetime.today().strftime('%Y_%m_%d-%H_%M_%S')
-        self.path = f'data/Robot_data/{self.date}-surge_{self.k_v}-yaw_{self.k_psi}-{self.note}-poslog.csv'
+        self.path = f'data/Robot_data/{self.date}-{self.note}-poslog.csv'
 
     ################## Thruster interaction ##################
 
@@ -222,7 +243,7 @@ class BlueBoatController(Node):
         """
         Set the robot's mode to the requested input.
         """
-        self.get_logger().info(f"Current mode: {self.connection_state.mode}, switching to {mode}]")
+        self.get_logger().info(f"Current mode: {self.robot_state.mode}, switching to {mode}]")
 
         if self.mode_client.wait_for_service(timeout_sec=1.0):
             req = SetMode.Request()
@@ -285,26 +306,86 @@ class BlueBoatController(Node):
         }
 
         action = dispatch.get(command, lambda: self.move_callback(input_string))
-        action()
+        action()   
 
     ################## ROS2 node interaction ##################
 
     def param_callback(self, msg: String):
+        """
+        Returns true if the parameter changes are successful (used with the 'default' and 'override' command)
+        """
         self.get_logger().info(f" Parameters ready: {msg.data}")
 
     def mode_callback(self, msg: String):
+        """
+        Displays the mode sent to the robot to confirm the changes
+        """
         self.mode = msg.data
         self.get_logger().info(f" Mode received: {self.mode}")
 
     def state_callback(self, msg):
-        self.connection_state = msg
+        """
+        Read the state of the robot
+        """
+        self.robot_state = msg
 
     def imu_callback(self, msg: Imu):
         self.orientation = msg.orientation                  # (quaternion)
         self.angular_velocity = msg.angular_velocity        # (rad/s)
         self.linear_acceleration = msg.linear_acceleration  # (m/s^2)
 
-    def odom_msg(self):
+    def odom_callback(self, msg: Odometry):
+        def quaternion_to_yaw(q: Quaternion):
+            # yaw (Z axis rotation)
+            siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+            cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+            return math.atan2(siny_cosp, cosy_cosp)
+
+        def yaw_to_quaternion(yaw: float):
+            q = Quaternion()
+            q.w = math.cos(yaw * 0.5)
+            q.x = 0.0
+            q.y = 0.0
+            q.z = math.sin(yaw * 0.5)
+            return q
+
+        def normalize_angle(angle):
+            return math.atan2(math.sin(angle), math.cos(angle))
+
+        def transform_body_to_world(x_r, y_r, yaw, x_b, y_b):
+            c = math.cos(yaw)
+            s = math.sin(yaw)
+
+            x_w = x_r + (c * x_b - s * y_b)
+            y_w = y_r + (s * x_b + c * y_b)
+
+            return x_w, y_w
+
+        def enu_to_gps(lat0_deg, lon0_deg, east, north):
+            EARTH_RADIUS = 6378137.0  # meters
+
+            lat0 = math.radians(lat0_deg)
+            lon0 = math.radians(lon0_deg)
+
+            dlat = north / EARTH_RADIUS
+            dlon = east / (EARTH_RADIUS * math.cos(lat0))
+
+            lat = lat0 + dlat
+            lon = lon0 + dlon
+
+            return math.degrees(lat), math.degrees(lon)
+
+        def local_to_enu(x, y, yaw0):
+            # rotate local frame into ENU
+            theta = yaw0 - math.pi / 2.0
+
+            c = math.cos(theta)
+            s = math.sin(theta)
+
+            east  = c * x - s * y
+            north = s * x + c * y
+
+            return east, north
 
         # Set previous time measurement and compute dt
         t = self.get_clock().now().nanoseconds * 1e-9
@@ -313,70 +394,51 @@ class BlueBoatController(Node):
             return
         dt = t - self.prev_time
         self.prev_time = t
-        
-        # Read IMU data and use it to compute current position (starting yaw is set as the 0 value)
-        o = self.orientation
+
+        # Initialize reference on first callback
+        if not hasattr(self, "origin_set") or not self.origin_set:
+            self.x0 = msg.pose.pose.position.x
+            self.y0 = msg.pose.pose.position.y
+            self.z0 = msg.pose.pose.position.z
+            self.yaw0 = quaternion_to_yaw(msg.pose.pose.orientation)
+            self.lat0 = self.gps_data[0]
+            self.lon0 = self.gps_data[1]
+            self.origin_set = True
+
+        # Position offset
+        x_rel = msg.pose.pose.position.x - self.x0
+        y_rel = msg.pose.pose.position.y - self.y0
+        z_rel = msg.pose.pose.position.z - self.z0
+
+        # Yaw offset
+        yaw = quaternion_to_yaw(msg.pose.pose.orientation)        
+        yaw_rel = normalize_angle(yaw - self.yaw0)
+
+        self.relative_coordinates = [x_rel,y_rel,yaw_rel]
+
+        # Build modified odometry
+        odom_out = Odometry()
+        odom_out.header = msg.header
+        odom_out.child_frame_id = msg.child_frame_id
+
+        odom_out.pose.pose.position.x = x_rel
+        odom_out.pose.pose.position.y = y_rel
+        odom_out.pose.pose.position.z = z_rel
+        odom_out.pose.pose.orientation = yaw_to_quaternion(yaw_rel)
+
+        # Preserve velocity and covariance
+        odom_out.twist = msg.twist
+        odom_out.pose.covariance = msg.pose.covariance
+        odom_out.twist.covariance = msg.twist.covariance
+
+        self.odom_publisher.publish(odom_out)
+
+        x_t = msg.twist.twist.linear.x
+        y_t = msg.twist.twist.linear.y
+        z_t = msg.twist.twist.linear.z
+        self.vel = np.array([x_t,y_t,z_t])
+
         av = self.angular_velocity
-
-        q = [o.w, o.x, o.y, o.z]
-        R = tf_transformations.quaternion_matrix(q)[:3, :3]
-
-        yaw = tf_transformations.euler_from_quaternion([o.x, o.y, o.z, o.w])[2]
-
-        if self.yaw0 is None:
-            self.yaw0 = yaw
-
-        yaw_rel = yaw - self.yaw0
-        q_rel = tf_transformations.quaternion_from_euler(0.0, 0.0, yaw_rel)
-        R_rel = tf_transformations.quaternion_matrix(q_rel)[:3, :3]
-
-        a_body = np.array([
-            self.linear_acceleration.x,
-            self.linear_acceleration.y,
-            self.linear_acceleration.z
-        ])
-
-        g = np.array([0, 0, 9.81])
-
-        # rotate to world frame
-        a_world = R @ a_body - g
-
-        a_world[2] = 0.0
-
-        self.vel += a_world * dt
-        self.pos += self.vel * dt
-
-
-        ## Publish robot odometry for controllers
-        msg = Odometry()
-
-        # header
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "odom"
-        msg.child_frame_id = "base_link"
-
-        # position
-        msg.pose.pose.position.x = self.pos[0]
-        msg.pose.pose.position.y = self.pos[1]
-        msg.pose.pose.position.z = 0.0
-
-        # orientation (quaternion)
-        msg.pose.pose.orientation.x = q_rel[0]
-        msg.pose.pose.orientation.y = q_rel[1]
-        msg.pose.pose.orientation.z = q_rel[2]
-        msg.pose.pose.orientation.w = q_rel[3]
-
-        # linear velocity
-        msg.twist.twist.linear.x = self.vel[0]
-        msg.twist.twist.linear.y = self.vel[1]
-        msg.twist.twist.linear.z = 0.0
-
-        # angular velocity
-        msg.twist.twist.angular.x = av.x
-        msg.twist.twist.angular.y = av.y
-        msg.twist.twist.angular.z = av.z
-
-        self.odom_publisher.publish(msg)
 
         # Apply sensor fusion to get a smoother approximation at higher frequency of pinger_coordinates
         if not all(self.pinger_coordinates == np.zeros(3)): # Make sure the pinger has been detected
@@ -385,7 +447,28 @@ class BlueBoatController(Node):
 
             self.pinger_coordinates -= (self.vel + np.cross(omega, p)) * dt
         
-        self.publish(Float32MultiArray(), self.pinger_coordinates[:2], self.pinger_publisher)
+        self.publish(Float32MultiArray(), self.pinger_coordinates, self.pinger_publisher)
+
+        if not hasattr(self, "origin_set") or not self.origin_set:
+            return  
+
+        # rotate pinger coordinates into original frame
+        x_body = self.pinger_coordinates[0]
+        y_body = self.pinger_coordinates[1]
+
+        x_world, y_world = transform_body_to_world(x_rel, y_rel, yaw_rel, x_body, y_body)
+
+        self.corrected_pinger = [x_world, y_world]
+
+        # convert local pinger into gps coordinates
+        east, north = local_to_enu(x_world,y_world,self.yaw0)
+
+        lat, lon = enu_to_gps(self.lat0, self.lon0, east, north)
+
+        self.pinger_gps = [lat, lon]
+
+    def gps_callback(self, msg : NavSatFix):
+        self.gps_data = [msg.latitude, msg.longitude]
 
     def uw_gps_callback(self, msg):
         """
@@ -406,6 +489,9 @@ class BlueBoatController(Node):
 
         df_tmp.iloc[0, :19] = msg.data
 
+        t_x,t_y,t_z = df_tmp.iloc[0, 16:19]
+        self.pinger_coordinates = np.array([t_x,t_y,t_z])
+
         df_tmp.iloc[0, 19] = self.orientation.x
         df_tmp.iloc[0, 20] = self.orientation.y
         df_tmp.iloc[0, 21] = self.orientation.z
@@ -419,12 +505,25 @@ class BlueBoatController(Node):
         df_tmp.iloc[0, 27] = self.linear_acceleration.y
         df_tmp.iloc[0, 28] = self.linear_acceleration.z
 
-        df_tmp.iloc[0, 29] = self.target[0]
-        df_tmp.iloc[0, 30] = self.target[1]
-        df_tmp.iloc[0, 31] = self.target[2]
+        df_tmp.iloc[0, 29] = self.relative_coordinates[0]
+        df_tmp.iloc[0, 30] = self.relative_coordinates[1]
+        df_tmp.iloc[0, 31] = self.relative_coordinates[2]
 
-        df_tmp.iloc[0, 32] = self.thruster_input[0]
-        df_tmp.iloc[0, 33] = self.thruster_input[1]
+        df_tmp.iloc[0, 32] = self.target[0]
+        df_tmp.iloc[0, 33] = self.target[1]
+        df_tmp.iloc[0, 34] = self.target[2]
+
+        df_tmp.iloc[0, 35] = self.corrected_pinger[0]
+        df_tmp.iloc[0, 36] = self.corrected_pinger[1]
+
+        df_tmp.iloc[0, 37] = self.gps_data[0]
+        df_tmp.iloc[0, 38] = self.gps_data[1]
+
+        df_tmp.iloc[0, 39] = self.pinger_gps[0]
+        df_tmp.iloc[0, 40] = self.pinger_gps[1]
+
+        df_tmp.iloc[0, 41] = self.thruster_input[0]
+        df_tmp.iloc[0, 42] = self.thruster_input[1]
         
         self.df_log = pd.concat([self.df_log, df_tmp])
 
@@ -450,12 +549,12 @@ class BlueBoatController(Node):
         ################## Initialize robot ##################
         if not self.init:
             # Wait until connected
-            if not self.connection_state.connected:
+            if not self.robot_state.connected:
                 self.get_logger().info('Waiting for FCU connection...')
                 return
 
             # Set mode
-            if self.connection_state.mode != "MANUAL": 
+            if self.robot_state.mode != "MANUAL": 
                 self.SetMode('MANUAL')
                 return
 
@@ -468,28 +567,26 @@ class BlueBoatController(Node):
             return
 
         ################## Control loop ##################
-
-        # Send ready msg to controller node
-        self.publish(Bool(), True, self.set_controller_publisher)
         
         # Start recording time
         if not self.time_set:
             self.initial_time = time.time()
+
+            # Send ready msg to controller node
+            self.publish(Bool(), True, self.set_controller_publisher)
+
             self.time_set = True
         
         current_time = time.time()
         
+        self.get_logger().info(f'Corrected pinger: {self.corrected_pinger}')
         ## Send input to thrusters
 
         # If no controller is set, allow for manual input
         if self.controller_type == '' and current_time - self.initial_time >= self.manual_move_timer:
             self.manualMove([0, 0])
         else:
-            self.manualMove(self.thruster_input)
-    
-        self.odom_msg()
-        
-        
+            self.manualMove(self.thruster_input)        
         
 rclpy.init()
 node = BlueBoatController()

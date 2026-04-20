@@ -46,13 +46,14 @@ def launch_setup():
                 'master_control.py', 
                 parameters={'controller_type' : sl_controller,
                             'simulation' : False,
-                            'use_pinger': sl_pinger})
+                            'use_pinger': sl_pinger,
+                            'use_sim_time': False})
 
-        if not sl.arg('use_pinger'):
+        if sl.arg('use_pinger') == False:
                 # Compute trajectory and target
                 sl.node('blueboat_control', 
                         'path_generation.py', 
-                        parameters={'trajectory' : sl_trajectory})
+                         parameters={'trajectory' : sl_trajectory})
 
 
     return sl.launch_description()

@@ -25,6 +25,7 @@ The current recommended ROS2 version is Jazzy. All the related info can be found
 - [slider_publisher](https://github.com/oKermorgant/slider_publisher), installable through `apt install ros-${ROS_DISTRO}-slider-publisher`
 - [auv_control](https://github.com/CentraleNantesROV/auv_control) for basic control laws
 - [urdf_parser](https://github.com/ros/urdf_parser_py) intended to have the controller work with any robot description
+#TODO add acados 
 
 # Installation
 

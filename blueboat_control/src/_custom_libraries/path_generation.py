@@ -41,8 +41,8 @@ class PathGeneration(Node):
 
         # Station keeping
         if path_shape == 'station_keeping':
-            x = 20.0
-            y = 25.0
+            x = 0.0
+            y = 0.0
             z = 0.0
             roll = 0.0
             pitch = 0.0

@@ -29,7 +29,7 @@ import custom_functions as cf
 class Controller(Node):
     def __init__(self):
 
-        super().__init__('blueboat_control', namespace='blueboat')
+        super().__init__('master_control', namespace='blueboat')
 
         self.declare_parameter('controller_type', 'MPC') 
         self.controller_type = self.get_parameter('controller_type').get_parameter_value().string_value
@@ -50,11 +50,12 @@ class Controller(Node):
         self.pose_arrow_publisher = self.create_publisher(Marker, "/pose_arrow", 10)
 
         # Create a client for path request
-        self.client = self.create_client(RequestPath, '/path_request')
+        if not self.use_pinger:
+            self.client = self.create_client(RequestPath, '/path_request')
 
-        while not self.client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("Waiting for service...")
-        
+            while not self.client.wait_for_service(timeout_sec=1.0):
+                self.get_logger().info("Waiting for service...")
+            
         self.future = None # Used for client requests
 
         self.time_set = False
@@ -67,6 +68,7 @@ class Controller(Node):
 
         self.ready = False
         self.init = False
+        self.pinger_target = None
 
         # Initialize controller 
         self.controller_path = Path()
@@ -105,8 +107,16 @@ class Controller(Node):
             self.path_time = self.dt
             self.path_steps = 2
             
-            self.outer_gains = {'x': (25., 5., 0.),
-                                'psi': (15., 2., 0.)}
+            # Simulation gains
+            # self.outer_gains = {'x': (25., 5., 0.),
+            #                     'psi': (15., 2., 0.)}
+
+            # self.inner_gains = {'u': (1., 0., 0.),
+            #                     'r': (1., 0., 0.)}
+
+            # Real gains
+            self.outer_gains = {'x': (3., 0.01, 0.),
+                                'psi': (1.2, 0.01, 0.)}
 
             self.inner_gains = {'u': (1., 0., 0.),
                                 'r': (1., 0., 0.)}
@@ -124,10 +134,10 @@ class Controller(Node):
             self.path_time = self.dt
             self.path_steps = 2
 
-            self.k_v = 0.03
-            self.k_psi = 20.0
+            self.k_v = 0.15
+            self.k_psi = 10.0
 
-            self.pinger_target = None
+            self.safety_distance = -1.     # Brakes and stop moving if the distance to the pinger is smaller than this value, set it to negative to disable it
             self.stopping_sequence = False # Used as a safety to stop LoS control when it gets close to target
             self.stopping_time = None
 
@@ -153,7 +163,7 @@ class Controller(Node):
         self.current_twist = twist
 
     def pinger_callback(self, msg: Float32MultiArray):
-        self.pinger_coordinates = msg.data
+        self.pinger_target = msg.data
 
     def ready_callback(self, msg: Bool):
         self.ready = msg.data
@@ -172,7 +182,7 @@ class Controller(Node):
 
         # Convert to differential thrust
         if not self.stopping_sequence:
-            if d > 3. :
+            if d > self.safety_distance :
                 thruster_input[0] = v + 0.295 * yaw_rate
                 thruster_input[1] = v - 0.295 * yaw_rate
             else:
@@ -187,8 +197,8 @@ class Controller(Node):
             else:
                 thruster_input = [0.,0.]
 
-        self.get_logger().info(f"Pinger coordinates (robot frame): \n{x}, {y}, {z}")
-        self.get_logger().info(f"Computed thrust: \n{thruster_input[0]}, {thruster_input[1]}")
+        # self.get_logger().info(f"Pinger coordinates (robot frame): \n{x}, {y}")
+        # self.get_logger().info(f"Computed thrust: \n{thruster_input[0]}, {thruster_input[1]}")
 
         return thruster_input
 
@@ -238,7 +248,8 @@ class Controller(Node):
                                              thruster_limits = self.thruster_limits
                                              )
 
-        self.init = True
+            self.get_logger().info('Controller node initiated')
+            self.init = True
 
         if not self.time_set:
             self.initial_time = time.time()
@@ -248,37 +259,41 @@ class Controller(Node):
 
         ## Update path
         # Check if previous future is still pending
-        if self.future is not None:
-            if self.future.done():
-                try:
-                    result = self.future.result()
-                    if result is not None:
-                        self.controller_path = result.path
-                    else:
-                        self.get_logger().error("Service returned None.")
-                except Exception as e:
-                    self.get_logger().error(f"Service call raised exception: {e}")
-                finally:
-                    self.future = None
-                return
+        if not self.use_pinger:
+            if self.future is not None:
+                if self.future.done():
+                    try:
+                        result = self.future.result()
+                        if result is not None:
+                            self.controller_path = result.path
+                        else:
+                            self.get_logger().error("Service returned None.")
+                    except Exception as e:
+                        self.get_logger().error(f"Service call raised exception: {e}")
+                    finally:
+                        self.future = None
+                    return
 
-        # Send new request
-        request = RequestPath.Request()
-        request.path_request.data = np.linspace(current_time, current_time + self.path_time, int(self.path_steps), dtype=float)
+            # Send new request
+            request = RequestPath.Request()
+            request.path_request.data = np.linspace(current_time, current_time + self.path_time, int(self.path_steps), dtype=float)
 
-        self.future = self.client.call_async(request)
+            self.future = self.client.call_async(request)
 
         ## Compute thrust
         # Thruster input
         u = [0]*2
 
-        if self.current_pose is not None and self.current_twist is not None:
-            current_state = np.array([self.current_pose[0], # x
-                                  self.current_pose[1], # y
-                                  self.current_pose[5], # yaw
-                                  self.current_twist[0], # u
-                                  self.current_twist[1], # v
-                                  self.current_twist[5]]) # r
+        if self.current_pose is None or self.current_twist is None:
+            return
+        
+        current_state = np.array([self.current_pose[0], # x
+                                self.current_pose[1], # y
+                                self.current_pose[5], # yaw
+                                self.current_twist[0], # u
+                                self.current_twist[1], # v
+                                self.current_twist[5]]) # r
+
 
         current_state = np.array(current_state).reshape(-1)
 
@@ -294,6 +309,8 @@ class Controller(Node):
             if self.controller_type == 'PID':
                 target = cf.compute_target(self.controller_path, self.dt)
                 u,_ = self.controller.compute(current_state, target[:3])
+                self.get_logger().info(f'\nState: {current_state} \n Target: {target} \nThrust: {u}')
+
 
             if self.controller_type == 'LoS':
                 target = cf.compute_target(self.controller_path, self.dt)
@@ -303,7 +320,7 @@ class Controller(Node):
         elif self.use_pinger and self.pinger_target is not None: # MPC is not supported for this
             if self.controller_type == 'PID':
                 # Adapt the controller input to be used in robot frame
-                target = [*self.pinger_target, 0]
+                target = [*self.pinger_target[:2], 0]
                 current_state[[0,1,2]] = 0
                 u,_ = self.controller.compute(current_state, target)
 
@@ -311,30 +328,29 @@ class Controller(Node):
                 target = self.pinger_target
                 u = self.solve_LoS(target, current_time)
 
-        # Publish controller target (for data recording)
-        if self.use_pinger and self.pinger_target is not None:
-            msg = Float32MultiArray()
-            msg.data = target
-            self.thruster_input_publisher.publish(msg)
+            # Publish controller target (for data recording)
+                msg = Float32MultiArray()
+                msg.data = target
+                self.thruster_input_publisher.publish(msg)
 
         # Publish thruster input
         msg = Float32MultiArray()
         msg.data = u
         self.thruster_input_publisher.publish(msg)
-        
+
+        self.get_logger().info(f'Pinger coordinates: {self.pinger_target}')
+        # self.get_logger().info(f'Pose: {self.current_pose} \nTwist: {self.current_twist} \nComputed thrust: {u}')
+
         # Update and save monitoring metrics to be graphed later
         if self.controller_path.poses:
             x_m = current_state[0]
             y_m = current_state[1]
             psi_m = current_state[2]
 
-            x_d_m = desired_pose.position.x
-            y_d_m = desired_pose.position.y
+            x_d_m = target[0]
+            y_d_m = target[1]
 
-            q = desired_pose.orientation
-            siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-            cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-            psi_d_m = math.atan2(siny_cosp, cosy_cosp)
+            psi_d_m = target[2]
 
             data_array = [current_time, x_m, y_m, psi_m, x_d_m, y_d_m , psi_d_m, u[0],u[1]]
 
@@ -343,7 +359,6 @@ class Controller(Node):
             publisher_msg = Float32MultiArray()
             publisher_msg.data = data_array
             self.data_publisher.publish(publisher_msg)
-            # self.get_logger().info(f'Publishing: {msg.data}')
 
             if (current_time - self.t_record) > 0.1: # Update the saved file at set interval as doing so every step may corrupt the file if the callback is too frequent
                 self.t_record = current_time
