@@ -25,7 +25,8 @@ The current recommended ROS2 version is Jazzy. All the related info can be found
 - [slider_publisher](https://github.com/oKermorgant/slider_publisher), installable through `apt install ros-${ROS_DISTRO}-slider-publisher`
 - [auv_control](https://github.com/CentraleNantesROV/auv_control) for basic control laws
 - [urdf_parser](https://github.com/ros/urdf_parser_py) intended to have the controller work with any robot description
-#TODO add acados 
+- [acados solver](https://docs.acados.org/index.html) used for MPC computation 
+- [mavros](https://github.com/mavlink/mavros) 
 
 # Installation
 
@@ -58,15 +59,19 @@ Both control schemes are handled by the same node that takes the desired control
 The full list of trajectories is found in blueboat_control/src/_custom_libraries/path_generation.py
 
 ## Real robot
-This code is meant to interact with the BlueRobotics BlueBoat: https://bluerobotics.com/store/boat/blueboat/blueboat/
+This code is meant to interact with the [BlueRobotics BlueBoat](https://bluerobotics.com/store/boat/blueboat/blueboat/)
 
-Interaction with ROS2 uses the blue-os ROS2 app (can be directly installed through BlueOS app tab): https://github.com/itskalvik/blueos-ros2
+A detailled software integration tutorial can be found [here]()
+
+Interaction with ROS2 uses the [blue-os ROS2 app](https://github.com/itskalvik/blueos-ros2) (can be directly installed through BlueOS app tab): 
+
+High-level interaction is done with [QGroundControl](https://s3.amazonaws.com/downloads.bluerobotics.com/QGC/latest/QGroundControl.AppImage)
 
 The launch file that handles every robot interaction and control can be run with:
 
 `ros2 launch blueboat_control BlueBoat_launch.py`
 
-Different parameters can be handled through a single instruction:
+Different interactions can be handled through a single instruction:
 
 `ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: [value]"`
 

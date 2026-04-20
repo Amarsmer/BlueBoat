@@ -579,7 +579,7 @@ class BlueBoatController(Node):
         
         current_time = time.time()
         
-        self.get_logger().info(f'Corrected pinger: {self.corrected_pinger}')
+        # self.get_logger().info(f'Corrected pinger: {self.corrected_pinger}')
         ## Send input to thrusters
 
         # If no controller is set, allow for manual input
