@@ -28,6 +28,15 @@ The current recommended ROS2 version is Jazzy. All the related info can be found
 - [acados solver](https://docs.acados.org/index.html) used for MPC computation 
 - [mavros](https://github.com/mavlink/mavros) 
 
+## Real robot
+This code is meant to interact with the [BlueRobotics BlueBoat](https://bluerobotics.com/store/boat/blueboat/blueboat/)
+
+A detailled software integration tutorial can be found [here](bluerobotics.com/learn/blueboat-software-setup/)
+
+Interaction with ROS2 uses the [blue-os ROS2 app](https://github.com/itskalvik/blueos-ros2) (can be directly installed through BlueOS app tab): 
+
+High-level interaction is done with [QGroundControl](https://s3.amazonaws.com/downloads.bluerobotics.com/QGC/latest/QGroundControl.AppImage)
+
 # Installation
 
 - Clone the package and its dependencies (if from source) in your ROS 2 workspace `src` and compile with `colcon build`, make sure you are in the parent folder of `src` when compiling.
@@ -39,48 +48,58 @@ The current recommended ROS2 version is Jazzy. All the related info can be found
 
     `source install/setup.bash`
 
-- To run a demonstration with the vehicle, you can run a Gazebo scenario, and spawn the robot with a GUI to control the thrusters:
+- To run a demonstration with the vehicle, you can run a Gazebo scenario, and spawn the robot with:
 
-    `ros2 launch blueboat_description world_launch.py sliders:=true`
+    `ros2 launch blueboat_control Sim_launch.py`
+
+On a fresh install, it is likely that some python dependencies will have to be installed, proceed as such.
 
 # Input / output
 
 Gazebo will:
 
 - Subscribe to /blueboat/cmd_thruster[i] and expect std_msgs/Float64 messages (thrust in Newton).
-- NOT YET IMPLEMENTED: ~~Publish sensor data to various topics (image, mpu+lsm for IMU, cloud for the sonar, odom)~~
 - Publish the ground truth on /blueboat/pose_gt. This pose is forwarded to /tf if pose_to_tf is used.
 
 # High-level control
-Both control schemes are handled by the same node that takes the desired control and trajectory as a launch argument:
+This package is meant to be easy to use, having only two launch files to either handle simulation or real robot interaction, both using the same parameters (with some exclusive to the real robot).
 
-`ros2 launch blueboat_control Sim_launch.py controller_type:='PID' trajectory:='sin'`
+## Launch files
 
-The full list of trajectories is found in blueboat_control/src/_custom_libraries/path_generation.py
+The simulation is run with:
 
-## Real robot
-This code is meant to interact with the [BlueRobotics BlueBoat](https://bluerobotics.com/store/boat/blueboat/blueboat/)
-
-A detailled software integration tutorial can be found [here]()
-
-Interaction with ROS2 uses the [blue-os ROS2 app](https://github.com/itskalvik/blueos-ros2) (can be directly installed through BlueOS app tab): 
-
-High-level interaction is done with [QGroundControl](https://s3.amazonaws.com/downloads.bluerobotics.com/QGC/latest/QGroundControl.AppImage)
+`ros2 launch blueboat_control Sim_launch.py`
 
 The launch file that handles every robot interaction and control can be run with:
 
 `ros2 launch blueboat_control BlueBoat_launch.py`
 
-Different interactions can be handled through a single instruction:
+## Launch parameters
+
+- 'controller_type': choose between the available controllers. Three are available: 'MPC', 'PID', and 'LoS'
+- 'trajectory': the trajectory the robot is expected to follow with a given controller. The full list of trajectories is found in blueboat_control/src/_custom_libraries/path_generation.py
+- 'enable_motors' (Real robot only): both for testing and safety purposes, no signal will be sent to the motors unless this is set to True
+- 'use_pinger' (Real robot only): in the case the robot is equipped with an underwater gps, the 'PID' and 'LoS' controller can be set to follow an acoustic pinger instead of a virtual one
+- 'note' (Real robot only): it is possible to add a comment to the name of the log file recorded when the code is ran.
+
+Below are example of launch commands:
+`ros2 launch blueboat_control BlueBoat_launch.py enable_motors:=True controller_type:='PID' note:='testing_gains'`
+
+`ros2 launch blueboat_control Sim_launch.py controller_type:='MPC' trajectory:='kin_square'`
+
+## Terminal interactions
+Different interactions with the real robot can be handled through a single instruction:
 
 `ros2 topic pub --once /blueboat/input_str std_msgs/msg/String "data: [value]"`
 
 The list of available [value] is as follows:
  - 'enable': no input will be sent to the thrusters until this has been called
  - 'stop': opposite of previous command, stops the robot and disable thrusters
- - 'override': disables default thruster mapping of the robot, used to send input directly to the motors (used for various controllers and terminal control, makes control through the xbox controller mpossible)
+ - 'override': disables default thruster mapping of the robot, used to send input directly to the motors (used for various controllers and terminal control, makes control through the xbox controller impossible)
  - 'default': restores default mapping, to be used before closing the terminal
  - 'move': typical instruction follows the shape 'move [float_left] [float_right] [float_time]', it will set the float_left and float_right inputs to the thrusters and apply it for the float_time duration (seconds)
+ - 'arm': arms the robot's thrusters (used when interacting with the xbox controller)
+ - 'disarm': disarms the robot's thrusters
 
 # License
 blueboat package is open-sourced under the MIT License. See the LICENSE file for details.
