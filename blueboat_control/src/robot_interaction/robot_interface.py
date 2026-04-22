@@ -303,6 +303,8 @@ class BlueBoatController(Node):
                     'override': param_publish,
                     'default': param_publish,
                     'move': lambda: self.move_callback(input_string),
+                    'arm': lambda: self.setArmedStatus(True),
+                    'disarm': lambda: self.setArmedStatus(False)
         }
 
         action = dispatch.get(command, lambda: self.move_callback(input_string))
